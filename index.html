@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>个人信息收集站</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh; padding: 20px;
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        header { text-align: center; color: white; margin-bottom: 40px; }
+        header h1 { font-size: 2.5em; margin-bottom: 10px; text-shadow: 2px 2px 4px rgba(0,0,0,0.3); }
+        header p { font-size: 1.1em; opacity: 0.9; }
+        .filters {
+            background: white; padding: 20px; border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1); margin-bottom: 30px;
+            display: flex; gap: 15px; flex-wrap: wrap; align-items: center;
+        }
+        .filter-group { display: flex; flex-direction: column; gap: 5px; }
+        .filter-group label { font-size: 0.9em; font-weight: 600; color: #333; }
+        .filter-group select, .filter-group input {
+            padding: 10px 15px; border: 2px solid #e0e0e0; border-radius: 8px;
+            font-size: 14px; min-width: 200px; transition: all 0.3s;
+        }
+        .filter-group select:focus, .filter-group input:focus {
+            outline: none; border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 20px; }
+        .card {
+            background: white; border-radius: 12px; padding: 25px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1); transition: all 0.3s; cursor: pointer;
+        }
+        .card:hover { transform: translateY(-5px); box-shadow: 0 8px 25px rgba(0,0,0,0.2); }
+        .card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px; }
+        .card-category { padding: 5px 12px; border-radius: 20px; font-size: 0.85em; font-weight: 600; }
+        .category-AI { background: #e3f2fd; color: #1976d2; }
+        .category-SLG { background: #fce4ec; color: #c2185b; }
+        .category-新能源 { background: #e8f5e9; color: #388e3c; }
+        .category-金融 { background: #fff3e0; color: #f57c00; }
+        .card-date { font-size: 0.85em; color: #999; }
+        .card-title { font-size: 1.3em; font-weight: 700; margin-bottom: 10px; color: #333; line-height: 1.4; }
+        .card-summary { color: #666; line-height: 1.6; margin-bottom: 15px; }
+        .card-tags { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 15px; }
+        .card-tag { background: #f5f5f5; padding: 4px 10px; border-radius: 12px; font-size: 0.8em; color: #666; }
+        .card-footer {
+            display: flex; justify-content: space-between; align-items: center;
+            padding-top: 15px; border-top: 1px solid #eee;
+        }
+        .card-source { font-size: 0.9em; color: #999; }
+        .card-link { color: #667eea; text-decoration: none; font-size: 0.9em; font-weight: 600; }
+        .card-link:hover { text-decoration: underline; }
+        .importance-high { border-left: 4px solid #f44336; }
+        .importance-medium { border-left: 4px solid #ff9800; }
+        .importance-low { border-left: 4px solid #4caf50; }
+        .empty-state { text-align: center; color: white; padding: 60px 20px; font-size: 1.2em; }
+        .loading { text-align: center; color: white; padding: 60px 20px; font-size: 1.2em; }
+        @media (max-width: 768px) {
+            .filters { flex-direction: column; align-items: stretch; }
+            .filter-group select, .filter-group input { min-width: 100%; }
+            .cards { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📊 个人信息收集站</h1>
+            <p>AI · SLG游戏 · 新能源 · 金融</p>
+        </header>
+        <div class="filters">
+            <div class="filter-group">
+                <label>📅 日期</label>
+                <select id="dateFilter">
+                    <option value="all">全部日期</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label>📁 类别</label>
+                <select id="categoryFilter">
+                    <option value="all">全部类别</option>
+                    <option value="AI">AI</option>
+                    <option value="SLG">SLG游戏</option>
+                    <option value="新能源">新能源</option>
+                    <option value="金融">金融</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label>🔍 搜索</label>
+                <input type="text" id="searchInput" placeholder="搜索标题或摘要...">
+            </div>
+        </div>
+        <div id="cards" class="cards"><div class="loading">加载中...</div></div>
+    </div>
+    <script>
+        let allData = [];
+        async function loadData() {
+            try {
+                const response = await fetch('data/2026-03-26.json');
+                if (response.ok) {
+                    const data = await response.json();
+                    allData = data.items || [];
+                    populateDateFilter();
+                    renderCards();
+                } else throw new Error('无法加载数据');
+            } catch (error) {
+                console.error('加载数据失败:', error);
+                document.getElementById('cards').innerHTML = '<div class="empty-state">加载数据失败，请检查网络连接</div>';
+            }
+        }
+        function populateDateFilter() {
+            const dateFilter = document.getElementById('dateFilter');
+            const dates = [...new Set(allData.map(item => item.date))].sort().reverse();
+            dates.forEach(date => {
+                const option = document.createElement('option');
+                option.value = date; option.textContent = date;
+                dateFilter.appendChild(option);
+            });
+        }
+        function renderCards() {
+            const dateFilter = document.getElementById('dateFilter').value;
+            const categoryFilter = document.getElementById('categoryFilter').value;
+            const searchInput = document.getElementById('searchInput').value.toLowerCase();
+            let filtered = allData.filter(item => {
+                if (dateFilter !== 'all' && item.date !== dateFilter) return false;
+                if (categoryFilter !== 'all' && item.category !== categoryFilter) return false;
+                if (searchInput && !item.title.toLowerCase().includes(searchInput) && !item.summary.toLowerCase().includes(searchInput)) return false;
+                return true;
+            });
+            const cardsContainer = document.getElementById('cards');
+            if (filtered.length === 0) {
+                cardsContainer.innerHTML = '<div class="empty-state">没有找到匹配的内容</div>';
+                return;
+            }
+            cardsContainer.innerHTML = filtered.map(item => `
+                <div class="card importance-${item.importance || 'low'}">
+                    <div class="card-header">
+                        <span class="card-category category-${item.category}">${item.category}</span>
+                        <span class="card-date">${item.date}</span>
+                    </div>
+                    <div class="card-title">${item.title}</div>
+                    <div class="card-summary">${item.summary}</div>
+                    <div class="card-tags">
+                        ${(item.tags || []).map(tag => `<span class="card-tag">#${tag}</span>`).join('')}
+                    </div>
+                    <div class="card-footer">
+                        <span class="card-source">📰 ${item.source}</span>
+                        ${item.url ? `<a href="${item.url}" target="_blank" class="card-link">查看详情 →</a>` : ''}
+                    </div>
+                </div>
+            `).join('');
+        }
+        document.getElementById('dateFilter').addEventListener('change', renderCards);
+        document.getElementById('categoryFilter').addEventListener('change', renderCards);
+        document.getElementById('searchInput').addEventListener('input', renderCards);
+        loadData();
+    </script>
+</body>
+</html>
